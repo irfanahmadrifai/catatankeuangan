@@ -98,11 +98,17 @@
     </div>
 
     <div id="view-anggaran" class="view-section hide">
-      <div class="flex items-center gap-2 mb-4">
+      <div class="flex items-center gap-2 mb-2">
         <button onclick="changeBudgetMonth(-1)" class="bg-white px-3 py-2 rounded shadow"><i class="fas fa-chevron-left text-indigo-600"></i></button>
         <input type="month" id="budgetMonth" class="flex-1 p-2 border rounded text-center font-bold text-lg" onchange="renderBudget()">
         <button onclick="changeBudgetMonth(1)" class="bg-white px-3 py-2 rounded shadow"><i class="fas fa-chevron-right text-indigo-600"></i></button>
       </div>
+      
+      <div class="bg-indigo-50 border border-indigo-100 text-indigo-700 p-3 rounded-lg text-center mb-4 shadow-sm">
+        <p class="text-xs">Total Alokasi Bulan Ini</p>
+        <p class="text-xl font-bold" id="lblTotalAlokasi">Rp 0</p>
+      </div>
+
       <div id="listBudget" class="space-y-4"></div>
       
       <div id="modalBudget" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 hide">
@@ -279,12 +285,19 @@
       let m = document.getElementById('budgetMonth').value; let html = ''; let pBulan = {}; KATEGORI_KELUAR.forEach(c => pBulan[c] = 0);
       state.transaksi.forEach(tx => { if(tx.Jenis === 'Pengeluaran' && tx.Tanggal.startsWith(m)) pBulan[tx.Kategori] += parseInt(tx.Nominal) || 0; });
 
+      let totalAlokasi = 0;
+
       KATEGORI_KELUAR.forEach(cat => {
         let bData = state.anggaran.find(a => a.Bulan === m && a.Kategori === cat);
-        let target = bData ? parseInt(bData["Target Nominal"]) : 0; let terpakai = pBulan[cat] || 0;
+        let target = bData ? parseInt(bData["Target Nominal"]) : 0; 
+        totalAlokasi += target;
+        let terpakai = pBulan[cat] || 0;
         let persen = target > 0 ? (terpakai / target) * 100 : 0; let pColor = persen >= 90 ? 'bg-red-500' : (persen > 50 ? 'bg-yellow-400' : 'bg-green-500');
         html += `<div class="bg-white p-4 rounded-lg shadow" onclick="bukaModalBudget('${cat}')"><div class="flex justify-between mb-1"><span class="font-bold text-sm">${cat}</span><span class="text-xs">${fmtRp(terpakai)} / ${fmtRp(target)}</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div class="${pColor} h-2.5 rounded-full" style="width: ${persen > 100 ? 100 : persen}%"></div></div></div>`;
-      }); document.getElementById('listBudget').innerHTML = html;
+      }); 
+      
+      document.getElementById('listBudget').innerHTML = html;
+      document.getElementById('lblTotalAlokasi').innerText = fmtRp(totalAlokasi);
     }
 
     function changeBudgetMonth(dir) {
