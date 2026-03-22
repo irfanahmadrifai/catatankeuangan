@@ -42,7 +42,13 @@
         <h2 class="text-3xl font-bold mt-1" id="dashTotalSaldo">Rp 0</h2>
       </div>
 
-      <h3 class="font-bold text-gray-700 mb-2">Cashflow Bulan Ini</h3>
+      <div class="flex items-center gap-2 mb-4">
+        <button onclick="changeDashMonth(-1)" class="bg-white px-3 py-2 rounded shadow"><i class="fas fa-chevron-left text-indigo-600"></i></button>
+        <input type="month" id="dashMonth" class="flex-1 p-2 border rounded text-center font-bold text-lg" onchange="renderDashboard()">
+        <button onclick="changeDashMonth(1)" class="bg-white px-3 py-2 rounded shadow"><i class="fas fa-chevron-right text-indigo-600"></i></button>
+      </div>
+
+      <h3 class="font-bold text-gray-700 mb-2">Cashflow Bulan Terpilih</h3>
       <div class="grid grid-cols-2 gap-3 mb-6">
         <div class="bg-white p-3 rounded-lg shadow border-l-4 border-green-500">
           <p class="text-xs text-gray-500">Pemasukan</p>
@@ -54,11 +60,11 @@
         </div>
       </div>
 
-      <h3 class="font-bold text-gray-700 mb-2">Peringatan Anggaran Berjalan</h3>
-      <div id="dashWarningBudget" class="space-y-2 mb-6"></div>
+      <h3 class="font-bold text-gray-700 mb-2">Ringkasan Pengeluaran</h3>
+      <div id="dashRingkasan" class="space-y-2 mb-6"></div>
 
-      <h3 class="font-bold text-gray-700 mb-2">5 Transaksi Terakhir</h3>
-      <div id="dashRecentTx" class="bg-white rounded-lg shadow divide-y divide-gray-100"></div>
+      <h3 class="font-bold text-gray-700 mb-2">Daftar Transaksi Bulan Ini</h3>
+      <div id="dashAllTx" class="bg-white rounded-lg shadow divide-y divide-gray-100 mb-6"></div>
     </div>
         <div id="view-rekening" class="view-section hide">
       <div id="listRekening" class="space-y-3"></div>
@@ -151,35 +157,32 @@
     window.onload = () => {
       document.getElementById('txDate').valueAsDate = new Date();
       let d = new Date();
-      document.getElementById('budgetMonth').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      let cMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      document.getElementById('budgetMonth').value = cMonth;
+      document.getElementById('dashMonth').value = cMonth;
       showOverlay('pinBox');
     };
 
     function showOverlay(id) {
       document.getElementById('overlay').classList.remove('hide');
-      document.getElementById('pinBox').classList.add('hide');
-      document.getElementById('loadingBox').classList.add('hide');
+      document.getElementById('pinBox').classList.add('hide'); document.getElementById('loadingBox').classList.add('hide');
       document.getElementById(id).classList.remove('hide');
     }
 
     function checkPIN() {
       if (document.getElementById('pinInput').value === APP_PIN) {
-        document.getElementById('overlay').classList.add('hide');
-        document.getElementById('setPin').value = APP_PIN;
-        document.getElementById('setApiUrl').value = API_URL;
+        document.getElementById('overlay').classList.add('hide'); document.getElementById('setPin').value = APP_PIN; document.getElementById('setApiUrl').value = API_URL;
         loadData();
       } else { alert("PIN Salah!"); }
     }
 
-    function resetApp() {
-      if(confirm("Hapus semua pengaturan lokal?")){ localStorage.clear(); location.reload(); }
-    }
+    function resetApp() { if(confirm("Hapus pengaturan?")){ localStorage.clear(); location.reload(); } }
 
     async function apiCall(action, payload) {
       if (!API_URL) return { status: 'offline' };
       try {
-        const response = await fetch(API_URL, { method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify({ action: action, data: payload }) });
-        return await response.json();
+        const res = await fetch(API_URL, { method: 'POST', headers: {'Content-Type': 'text/plain'}, body: JSON.stringify({ action: action, data: payload }) });
+        return await res.json();
       } catch (e) { return { status: 'error' }; }
     }
 
@@ -191,77 +194,77 @@
         state.transaksi = res.transaksi; state.rekening = res.rekening; state.anggaran = res.anggaran;
         if(state.rekening.length === 0) state.rekening = ACCOUNTS.map((n, i) => ({ID: 'R0'+(i+1), "Nama Rekening": n, "Saldo Awal": 0}));
       } else { alert("Gagal sinkronisasi data."); }
-      document.getElementById('overlay').classList.add('hide');
-      initUI();
+      document.getElementById('overlay').classList.add('hide'); initUI();
     }
 
     function initUI() { populateDropdowns(); setTxType('Pengeluaran'); renderDashboard(); renderRekening(); renderBudget(); }
-
     function fmtRp(num) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0); }
 
     function switchTab(tabId) {
-      document.querySelectorAll('.view-section').forEach(el => el.classList.add('hide'));
-      document.getElementById('view-' + tabId).classList.remove('hide');
+      document.querySelectorAll('.view-section').forEach(el => el.classList.add('hide')); document.getElementById('view-' + tabId).classList.remove('hide');
       document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-active', 'text-indigo-600'));
       document.querySelector(`[data-target="${tabId}"]`).classList.add('nav-active', 'text-indigo-600');
       const titles = { 'beranda': 'Dashboard', 'rekening': 'Rekening', 'tambah': 'Catat Transaksi', 'anggaran': 'Anggaran', 'setting': 'Pengaturan' };
       document.getElementById('headerTitle').innerText = titles[tabId];
-      if(tabId === 'beranda') renderDashboard();
-      if(tabId === 'rekening') renderRekening();
-      if(tabId === 'anggaran') renderBudget();
+      if(tabId === 'beranda') renderDashboard(); if(tabId === 'rekening') renderRekening(); if(tabId === 'anggaran') renderBudget();
     }
 
     function hitungSaldoRekening(namaRek) {
-      let rek = state.rekening.find(r => r["Nama Rekening"] === namaRek);
-      let saldo = parseInt(rek ? rek["Saldo Awal"] : 0) || 0;
+      let rek = state.rekening.find(r => r["Nama Rekening"] === namaRek); let saldo = parseInt(rek ? rek["Saldo Awal"] : 0) || 0;
       state.transaksi.forEach(tx => {
         let nom = parseInt(tx.Nominal) || 0;
         if (tx.Jenis === "Pemasukan" && tx["Rekening Asal"] === namaRek) saldo += nom;
         if (tx.Jenis === "Pengeluaran" && tx["Rekening Asal"] === namaRek) saldo -= nom;
-        if (tx.Jenis === "Mutasi") {
-          if (tx["Rekening Asal"] === namaRek) saldo -= nom;
-          if (tx["Rekening Tujuan"] === namaRek) saldo += nom;
-        }
-      });
-      return saldo;
+        if (tx.Jenis === "Mutasi") { if (tx["Rekening Asal"] === namaRek) saldo -= nom; if (tx["Rekening Tujuan"] === namaRek) saldo += nom; }
+      }); return saldo;
+    }
+
+    function changeDashMonth(dir) {
+      let input = document.getElementById('dashMonth'); let [y, m] = input.value.split('-');
+      let d = new Date(y, parseInt(m)-1 + dir, 1); input.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      renderDashboard();
     }
 
     function renderDashboard() {
-      let totalGabungan = 0; let masukBulanIni = 0; let keluarBulanIni = 0;
-      let currMonth = document.getElementById('budgetMonth').value;
+      let totalGabungan = 0; let masukBulanIni = 0; let keluarBulanIni = 0; let currMonth = document.getElementById('dashMonth').value;
       let pengeluaranPerCat = {}; KATEGORI_KELUAR.forEach(c => pengeluaranPerCat[c] = 0);
       state.rekening.forEach(r => totalGabungan += hitungSaldoRekening(r["Nama Rekening"]));
       
+      let txBulanIni = [];
       state.transaksi.forEach(tx => {
         let txMonth = tx.Tanggal.substring(0, 7); let nom = parseInt(tx.Nominal) || 0;
         if (txMonth === currMonth) {
+          txBulanIni.push(tx);
           if (tx.Jenis === "Pemasukan") masukBulanIni += nom;
           if (tx.Jenis === "Pengeluaran") { keluarBulanIni += nom; if (pengeluaranPerCat[tx.Kategori] !== undefined) pengeluaranPerCat[tx.Kategori] += nom; }
         }
       });
 
       document.getElementById('dashTotalSaldo').innerText = fmtRp(totalGabungan);
-      document.getElementById('dashMasuk').innerText = fmtRp(masukBulanIni);
-      document.getElementById('dashKeluar').innerText = fmtRp(keluarBulanIni);
+      document.getElementById('dashMasuk').innerText = fmtRp(masukBulanIni); document.getElementById('dashKeluar').innerText = fmtRp(keluarBulanIni);
 
-      let warnHtml = '';
+      let ringkasanHtml = '';
       KATEGORI_KELUAR.forEach(cat => {
         let bData = state.anggaran.find(a => a.Bulan === currMonth && a.Kategori === cat);
-        let target = bData ? parseInt(bData["Target Nominal"]) : 0;
-        let terpakai = pengeluaranPerCat[cat];
-        if (target > 0 && (terpakai / target) * 100 >= 90) {
-          warnHtml += `<div class="p-3 bg-red-50 border border-red-200 rounded-lg"><p class="text-sm font-bold text-red-600"><i class="fas fa-exclamation-triangle"></i> ${cat}</p><p class="text-xs text-red-500">${fmtRp(terpakai)} dari ${fmtRp(target)}</p></div>`;
-        }
-      });
-      document.getElementById('dashWarningBudget').innerHTML = warnHtml || '<p class="text-sm text-green-600 bg-green-50 p-2 rounded">Aman (< 90%).</p>';
+        let target = bData ? parseInt(bData["Target Nominal"]) : 0; let terpakai = pengeluaranPerCat[cat];
+        let persen = target > 0 ? (terpakai / target) * 100 : 0;
+        let colorTheme = "bg-gray-50 border-gray-200 text-gray-500"; let icon = "fa-minus-circle";
+        
+        if (target > 0) {
+           if (persen <= 50) { colorTheme = "bg-green-50 border-green-300 text-green-700"; icon = "fa-check-circle text-green-500"; }
+           else if (persen < 90) { colorTheme = "bg-yellow-50 border-yellow-300 text-yellow-700"; icon = "fa-exclamation-circle text-yellow-500"; }
+           else { colorTheme = "bg-red-50 border-red-300 text-red-700"; icon = "fa-exclamation-triangle text-red-500"; }
+        } else if (terpakai > 0) { colorTheme = "bg-red-50 border-red-300 text-red-700"; icon = "fa-exclamation-triangle text-red-500"; }
 
-      let txRecent = [...state.transaksi].reverse().slice(0, 5);
-      let txHtml = '';
-      txRecent.forEach(tx => {
+        ringkasanHtml += `<div class="p-3 border rounded-lg flex justify-between items-center mb-2 ${colorTheme}"><div class="flex items-center gap-3"><i class="fas ${icon} text-lg"></i><div class="text-sm font-bold">${cat}</div></div><div class="text-right text-xs"><span class="font-bold text-sm">${fmtRp(terpakai)}</span><br><span class="opacity-75">Anggaran: ${fmtRp(target)}</span></div></div>`;
+      }); document.getElementById('dashRingkasan').innerHTML = ringkasanHtml;
+
+      txBulanIni.reverse(); let txHtml = '';
+      txBulanIni.forEach(tx => {
         let color = tx.Jenis === 'Pemasukan' ? 'text-green-500' : (tx.Jenis === 'Pengeluaran' ? 'text-red-500' : 'text-blue-500');
-        txHtml += `<div class="p-3 border-b flex justify-between"><div class="text-sm"><b>${tx.Kategori || 'Mutasi'}</b><br><span class="text-xs text-gray-400">${tx.Tanggal}</span></div><p class="font-bold ${color}">${fmtRp(tx.Nominal)}</p></div>`;
-      });
-      document.getElementById('dashRecentTx').innerHTML = txHtml;
+        let icon = tx.Jenis === 'Pemasukan' ? 'fa-arrow-down' : (tx.Jenis === 'Pengeluaran' ? 'fa-arrow-up' : 'fa-exchange-alt');
+        txHtml += `<div class="p-3 border-b flex justify-between items-center"><div class="flex gap-3 items-center"><div class="bg-gray-100 p-2 rounded-full w-8 h-8 flex items-center justify-center"><i class="fas ${icon} ${color} text-xs"></i></div><div><p class="text-sm font-bold">${tx.Kategori || 'Mutasi'}</p><p class="text-[10px] text-gray-400">${tx.Tanggal} • ${tx["Rekening Asal"]}</p></div></div><p class="font-bold text-sm ${color}">${fmtRp(tx.Nominal)}</p></div>`;
+      }); document.getElementById('dashAllTx').innerHTML = txHtml || '<p class="text-center p-4 text-gray-400 text-sm">Belum ada transaksi di bulan ini</p>';
     }
           function renderRekening() {
       let html = '';
@@ -273,34 +276,26 @@
     }
 
     function renderBudget() {
-      let m = document.getElementById('budgetMonth').value;
-      let html = '';
-      let pBulan = {}; KATEGORI_KELUAR.forEach(c => pBulan[c] = 0);
+      let m = document.getElementById('budgetMonth').value; let html = ''; let pBulan = {}; KATEGORI_KELUAR.forEach(c => pBulan[c] = 0);
       state.transaksi.forEach(tx => { if(tx.Jenis === 'Pengeluaran' && tx.Tanggal.startsWith(m)) pBulan[tx.Kategori] += parseInt(tx.Nominal) || 0; });
 
       KATEGORI_KELUAR.forEach(cat => {
         let bData = state.anggaran.find(a => a.Bulan === m && a.Kategori === cat);
-        let target = bData ? parseInt(bData["Target Nominal"]) : 0;
-        let terpakai = pBulan[cat] || 0;
-        let persen = target > 0 ? (terpakai / target) * 100 : 0;
-        let pColor = persen >= 90 ? 'bg-red-500' : (persen > 75 ? 'bg-yellow-400' : 'bg-green-500');
+        let target = bData ? parseInt(bData["Target Nominal"]) : 0; let terpakai = pBulan[cat] || 0;
+        let persen = target > 0 ? (terpakai / target) * 100 : 0; let pColor = persen >= 90 ? 'bg-red-500' : (persen > 50 ? 'bg-yellow-400' : 'bg-green-500');
         html += `<div class="bg-white p-4 rounded-lg shadow" onclick="bukaModalBudget('${cat}')"><div class="flex justify-between mb-1"><span class="font-bold text-sm">${cat}</span><span class="text-xs">${fmtRp(terpakai)} / ${fmtRp(target)}</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div class="${pColor} h-2.5 rounded-full" style="width: ${persen > 100 ? 100 : persen}%"></div></div></div>`;
-      });
-      document.getElementById('listBudget').innerHTML = html;
+      }); document.getElementById('listBudget').innerHTML = html;
     }
 
     function changeBudgetMonth(dir) {
       let input = document.getElementById('budgetMonth'); let [y, m] = input.value.split('-');
-      let d = new Date(y, parseInt(m)-1 + dir, 1);
-      input.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      let d = new Date(y, parseInt(m)-1 + dir, 1); input.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
       renderBudget();
     }
 
     function bukaModalBudget(cat) {
-      state.currentBudgetCat = cat; document.getElementById('lblBudgetCath').innerText = cat;
-      let m = document.getElementById('budgetMonth').value;
-      let bData = state.anggaran.find(a => a.Bulan === m && a.Kategori === cat);
-      document.getElementById('inputBudgetNominal').value = bData ? bData["Target Nominal"] : "";
+      state.currentBudgetCat = cat; document.getElementById('lblBudgetCath').innerText = cat; let m = document.getElementById('budgetMonth').value;
+      let bData = state.anggaran.find(a => a.Bulan === m && a.Kategori === cat); document.getElementById('inputBudgetNominal').value = bData ? bData["Target Nominal"] : "";
       document.getElementById('modalBudget').classList.remove('hide');
     }
 
@@ -321,8 +316,7 @@
     async function updateSaldoAwal() {
       let rekNama = document.getElementById('editRekSelect').value; let nom = document.getElementById('editRekNominal').value;
       if (!rekNama || nom === "") return alert("Isi dengan benar!");
-      let rIndex = state.rekening.findIndex(r => r["Nama Rekening"] === rekNama);
-      if(rIndex >= 0) state.rekening[rIndex]["Saldo Awal"] = nom;
+      let rIndex = state.rekening.findIndex(r => r["Nama Rekening"] === rekNama); if(rIndex >= 0) state.rekening[rIndex]["Saldo Awal"] = nom;
       apiCall('update_rek', { nama: rekNama, saldoAwal: nom });
       alert("Diperbarui!"); document.getElementById('editRekNominal').value = ""; renderRekening();
     }
@@ -337,8 +331,7 @@
 
     function saveSettings() {
       localStorage.setItem('api_url', document.getElementById('setApiUrl').value);
-      let pin = document.getElementById('setPin').value;
-      if(pin.length === 6) localStorage.setItem('app_pin', pin);
+      let pin = document.getElementById('setPin').value; if(pin.length === 6) localStorage.setItem('app_pin', pin);
       alert("Tersimpan! Refresh aplikasi."); location.reload();
     }
 
@@ -350,19 +343,16 @@
       
       let selectKat = document.getElementById('txKategori'); selectKat.innerHTML = '';
       if (tipe === 'Pengeluaran') {
-        KATEGORI_KELUAR.forEach(k => selectKat.add(new Option(k, k)));
-        document.getElementById('boxKategori').classList.remove('hide'); document.getElementById('boxRekeningTujuan').classList.add('hide');
+        KATEGORI_KELUAR.forEach(k => selectKat.add(new Option(k, k))); document.getElementById('boxKategori').classList.remove('hide'); document.getElementById('boxRekeningTujuan').classList.add('hide');
       } else if (tipe === 'Pemasukan') {
-        KATEGORI_MASUK.forEach(k => selectKat.add(new Option(k, k)));
-        document.getElementById('boxKategori').classList.remove('hide'); document.getElementById('boxRekeningTujuan').classList.add('hide');
+        KATEGORI_MASUK.forEach(k => selectKat.add(new Option(k, k))); document.getElementById('boxKategori').classList.remove('hide'); document.getElementById('boxRekeningTujuan').classList.add('hide');
       } else {
         document.getElementById('boxKategori').classList.add('hide'); document.getElementById('boxRekeningTujuan').classList.remove('hide');
       }
     }
 
     function populateDropdowns() {
-      let opts = '<option value="">Pilih Rekening...</option>';
-      let accNames = state.rekening.length ? state.rekening.map(r => r["Nama Rekening"]) : ACCOUNTS;
+      let opts = '<option value="">Pilih Rekening...</option>'; let accNames = state.rekening.length ? state.rekening.map(r => r["Nama Rekening"]) : ACCOUNTS;
       accNames.forEach(acc => opts += `<option value="${acc}">${acc}</option>`);
       document.getElementById('txRekAsal').innerHTML = opts; document.getElementById('txRekTujuan').innerHTML = opts; document.getElementById('editRekSelect').innerHTML = opts;
     }
