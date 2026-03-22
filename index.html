@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Keuangan Keluarga</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
+        .app-container { max-width: 480px; margin: 0 auto; background: #fafafa; min-height: 100vh; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .page-enter { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .bg-primary { background-color: #0f172a; }
+        .bg-accent { background-color: #3b82f6; }
+    </style>
+</head>
+<body>
+
+<div class="app-container" id="app">
+    <div id="content-area" class="flex-1 overflow-y-auto hide-scrollbar pb-24"></div>
+    <nav id="bottom-nav" class="fixed bottom-0 w-full max-w-[480px] bg-white border-t border-slate-200 flex justify-between px-4 py-3 pb-safe hidden z-50 shadow-lg">
+        <button onclick="navigate('home')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="home"><i class="fas fa-home text-xl mb-1"></i><span class="text-[9px] font-bold">HOME</span></button>
+        <button onclick="navigate('rekening')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="rekening"><i class="fas fa-wallet text-xl mb-1"></i><span class="text-[9px] font-bold">BANK</span></button>
+        <button onclick="navigate('add')" class="relative -top-6 flex flex-col items-center justify-center w-14 h-14 bg-accent text-white rounded-full shadow-lg border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
+        <button onclick="navigate('budget')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="budget"><i class="fas fa-bullseye text-xl mb-1"></i><span class="text-[9px] font-bold">BUDGET</span></button>
+        <button onclick="navigate('settings')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="settings"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[9px] font-bold">SETTING</span></button>
+    </nav>
+</div>
+
+<div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-[100] flex items-center space-x-3 text-sm">Notifikasi</div>
+
+<div id="modal-saldo" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-[60] flex items-center justify-center px-4">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm">
+        <h3 class="text-lg font-bold mb-1">Update Saldo Awal</h3>
+        <p class="text-xs text-slate-500 mb-5" id="modal-rek-nama"></p>
+        <input type="number" id="modal-saldo-input" class="w-full p-4 text-2xl font-bold bg-slate-50 border rounded-xl outline-none mb-5" inputmode="numeric">
+        <div class="flex space-x-3">
+            <button onclick="closeModalSaldo()" class="w-1/2 py-3 bg-slate-100 font-bold rounded-xl">Batal</button>
+            <button onclick="simpanSaldoAwal()" class="w-1/2 py-3 bg-accent text-white font-bold rounded-xl">Simpan</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const KATEGORI_PENGELUARAN = [
+        { id: 'Keluarga', nama: 'Keluarga', icon: 'fa-users', color: 'bg-emerald-500' },
+        { id: 'Kebutuhan_Rumah', nama: 'Kebutuhan Rumah', icon: 'fa-home', color: 'bg-rose-500' },
+        { id: 'Sekolah', nama: 'Sekolah', icon: 'fa-graduation-cap', color: 'bg-amber-500' },
+        { id: 'Kendaraan', nama: 'Kendaraan', icon: 'fa-car', color: 'bg-purple-500' },
+        { id: 'Komunikasi', nama: 'Komunikasi', icon: 'fa-wifi', color: 'bg-blue-500' },
+        { id: 'Investasi', nama: 'Investasi', icon: 'fa-chart-line', color: 'bg-teal-500' },
+        { id: 'Kesehatan', nama: 'Kesehatan', icon: 'fa-heartbeat', color: 'bg-red-400' },
+        { id: 'Kebutuhan_Bayi', nama: 'Kebutuhan Bayi', icon: 'fa-baby-carriage', color: 'bg-pink-400' }
+    ];
+
+    const APP_STATE = {
+        isLoggedIn: false, currentPage: 'login', pin: localStorage.getItem('app_pin') || '123456',
+        gasUrl: localStorage.getItem('gas_url') || '',
+        data: { transaksi: [], rekening: [], anggaran: {} }, isLoading: false
+    };
+
+    const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
+    const getMonthKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
+
+    function showToast(msg, type='success') {
+        const t = document.getElementById('toast'); t.innerText = msg;
+        t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500);
+    }
+
+    async function apiCall(action, data) {
+        if (!APP_STATE.gasUrl) return { success: false };
+        try {
+            const res = await fetch(APP_STATE.gasUrl, { method: 'POST', body: JSON.stringify({ action, data }) });
+            return await res.json();
+        } catch (e) { return { success: false }; }
+    }
+
+    async function syncData() {
+        if (!APP_STATE.gasUrl) return; APP_STATE.isLoading = true; render();
+        const res = await apiCall('getSemuaData');
+        if (res.success) { APP_STATE.data = res; }
+        APP_STATE.isLoading = false; render();
+    }
+
+    function hitungRekening() {
+        let rek = {}; let total = 0;
+        APP_STATE.data.rekening.forEach(r => rek[r.nama] = { ...r, masuk:0, keluar:0, akhir:r.saldoAwal });
+        APP_STATE.data.transaksi.forEach(t => {
+            if (t.jenis === 'Mutasi') {
+                const parts = t.rekening.split(' | ');
+                if (rek[parts[0]]) { rek[parts[0]].keluar += t.nominal; rek[parts[0]].akhir -= t.nominal; }
+                if (rek[parts[1]]) { rek[parts[1]].masuk += t.nominal; rek[parts[1]].akhir += t.nominal; }
+            } else if (rek[t.rekening]) {
+                if (t.jenis === 'Masuk') { rek[t.rekening].masuk += t.nominal; rek[t.rekening].akhir += t.nominal; }
+                else { rek[t.rekening].keluar += t.nominal; rek[t.rekening].akhir -= t.nominal; }
+            }
+        });
+        Object.values(rek).forEach(r => total += r.akhir);
+        return { list: Object.values(rek), total };
+    }
+
+    function navigate(p) { APP_STATE.currentPage = p; render(); }
+
+    function render() {
+        const area = document.getElementById('content-area'); area.innerHTML = '';
+        const nav = document.getElementById('bottom-nav');
+        if (APP_STATE.isLoading) { area.innerHTML = '<div class="flex h-full items-center justify-center"><i class="fas fa-spinner fa-spin text-3xl text-accent"></i></div>'; return; }
+        if (APP_STATE.currentPage === 'login') { nav.classList.add('hidden'); renderLogin(); }
+        else { nav.classList.remove('hidden'); 
+            if (APP_STATE.currentPage === 'home') renderHome();
+            if (APP_STATE.currentPage === 'rekening') renderRekening();
+            if (APP_STATE.currentPage === 'add') renderAdd();
+            if (APP_STATE.currentPage === 'budget') renderBudget();
+            if (APP_STATE.currentPage === 'settings') renderSettings();
+        }
+    }
+
+    function renderLogin() {
+        document.getElementById('content-area').innerHTML = `
+            <div class="flex flex-col items-center justify-center h-screen bg-primary px-6">
+                <div class="bg-white p-8 rounded-[30px] w-full text-center">
+                    <h1 class="text-2xl font-bold mb-8">PIN KELUARGA</h1>
+                    <input type="password" id="pin-i" class="w-full text-center text-3xl border-b-2 outline-none mb-8" maxlength="6" inputmode="numeric">
+                    <button onclick="doLogin()" class="w-full bg-primary text-white py-4 rounded-xl font-bold">MASUK</button>
+                </div>
+            </div>`;
+    }
+    window.doLogin = () => { if(document.getElementById('pin-i').value === APP_STATE.pin) { APP_STATE.isLoggedIn=true; syncData(); navigate('home'); } };
+
+    function renderHome() {
+        const info = hitungRekening();
+        let trxH = APP_STATE.data.transaksi.slice(0,5).map(t => `
+            <div class="flex justify-between py-3 border-b text-sm">
+                <div><p class="font-bold">${t.kategori || 'Mutasi'}</p><p class="text-[10px] text-slate-400">${t.rekening}</p></div>
+                <p class="font-bold ${t.jenis==='Masuk'?'text-emerald-600':'text-slate-800'}">${t.jenis==='Masuk'?'+':'-'}${formatRp(t.nominal)}</p>
+            </div>`).join('');
+        document.getElementById('content-area').innerHTML = `
+            <div class="bg-primary p-10 text-center text-white rounded-b-[40px]">
+                <p class="text-xs opacity-60">TOTAL SALDO</p>
+                <h1 class="text-3xl font-bold">${formatRp(info.total)}</h1>
+            </div>
+            <div class="p-6">
+                <h3 class="font-bold mb-4">Transaksi Terakhir</h3>
+                <div class="bg-white p-4 rounded-2xl shadow-sm">${trxH || 'Kosong'}</div>
+            </div>`;
+    }
+
+    function renderRekening() {
+        const info = hitungRekening();
+        let h = info.list.map(r => `
+            <div class="bg-white p-5 rounded-2xl mb-4 shadow-sm border">
+                <div class="flex justify-between mb-4"><b>${r.nama}</b><b class="text-accent">${formatRp(r.akhir)}</b></div>
+                <div class="grid grid-cols-3 gap-2 text-[10px] text-center">
+                    <div onclick="bukaModalSaldo('${r.nama}')" class="bg-slate-50 p-2 rounded">AWAL<br>${formatRp(r.saldoAwal)}</div>
+                    <div class="bg-emerald-50 p-2 rounded text-emerald-600">MASUK<br>${formatRp(r.masuk)}</div>
+                    <div class="bg-rose-50 p-2 rounded text-rose-600">KELUAR<br>${formatRp(r.keluar)}</div>
+                </div>
+            </div>`).join('');
+        document.getElementById('content-area').innerHTML = `<div class="p-6"><b>DOMPET BSI</b><div class="mt-4">${h}</div></div>`;
+    }
+
+    function renderAdd() {
+        const reks = APP_STATE.data.rekening.map(r => `<option value="${r.nama}">${r.nama}</option>`).join('');
+        document.getElementById('content-area').innerHTML = `
+            <div class="p-6">
+                <b class="text-xl">Catat Baru</b>
+                <div class="flex bg-slate-100 p-1 rounded-xl mt-4 mb-6">
+                    <button onclick="setT('Keluar')" id="t-k" class="w-1/3 py-2 bg-white rounded-lg shadow-sm text-xs font-bold">Keluar</button>
+                    <button onclick="setT('Masuk')" id="t-m" class="w-1/3 py-2 text-xs font-bold">Masuk</button>
+                    <button onclick="setT('Mutasi')" id="t-t" class="w-1/3 py-2 text-xs font-bold">Mutasi</button>
+                </div>
+                <input type="hidden" id="i-j" value="Keluar">
+                <input type="number" id="i-n" placeholder="Nominal Rp" class="w-full p-4 text-2xl font-bold border rounded-xl mb-4" inputmode="numeric">
+                <div id="box-k"><select id="i-k" class="w-full p-4 border rounded-xl mb-4"></select></div>
+                <div id="box-r"><select id="i-r" class="w-full p-4 border rounded-xl mb-4">${reks}</select></div>
+                <div id="box-t" class="hidden"><select id="i-r1" class="w-full p-4 border rounded-xl mb-2">${reks}</select><select id="i-r2" class="w-full p-4 border rounded-xl mb-4">${reks}</select></div>
+                <input type="text" id="i-ket" placeholder="Keterangan" class="w-full p-4 border rounded-xl mb-6">
+                <button onclick="saveT()" class="w-full bg-accent text-white py-4 rounded-xl font-bold">SIMPAN</button>
+            </div>`;
+        window.setT('Keluar');
+    }
+
+    window.setT = (v) => {
+        document.getElementById('i-j').value = v;
+        ['t-k','t-m','t-t'].forEach(b => document.getElementById(b).className = "w-1/3 py-2 text-xs font-bold");
+        document.getElementById(v === 'Keluar' ? 't-k' : v === 'Masuk' ? 't-m' : 't-t').className = "w-1/3 py-2 bg-white rounded-lg shadow-sm text-xs font-bold";
+        document.getElementById('box-k').className = v === 'Mutasi' ? 'hidden' : '';
+        document.getElementById('box-r').className = v === 'Mutasi' ? 'hidden' : '';
+        document.getElementById('box-t').className = v === 'Mutasi' ? '' : 'hidden';
+        if(v !== 'Mutasi') document.getElementById('i-k').innerHTML = v === 'Masuk' ? '<option>Gaji</option><option>Insentif</option><option>Bonus</option>' : KATEGORI_PENGELUARAN.map(k=>`<option value="${k.id}">${k.nama}</option>`).join('');
+    }
+
+    window.saveT = async () => {
+        const jenis = document.getElementById('i-j').value;
+        const nominal = Number(document.getElementById('i-n').value);
+        let rek = document.getElementById('i-r').value;
+        let kat = document.getElementById('i-k').value;
+        if(jenis === 'Mutasi') { rek = document.getElementById('i-r1').value + ' | ' + document.getElementById('i-r2').value; kat = 'Mutasi'; }
+        const res = await apiCall('tambahTransaksi', { tanggal: new Date().toISOString().split('T')[0], jenis, nominal, rekening: rek, kategori: kat, keterangan: document.getElementById('i-ket').value });
+        if(res.success) { showToast('Tersimpan'); syncData(); navigate('home'); }
+    }
+
+    function renderBudget() {
+        const k = getMonthKey(); const a = APP_STATE.data.anggaran[k] || {};
+        let h = KATEGORI_PENGELUARAN.map(kat => `
+            <div class="mb-4 bg-white p-4 rounded-xl border">
+                <p class="text-[10px] font-bold text-slate-400">${kat.nama}</p>
+                <input type="number" id="b-${kat.id}" value="${a[kat.id]||''}" class="w-full p-2 border-b outline-none font-bold" placeholder="0">
+            </div>`).join('');
+        document.getElementById('content-area').innerHTML = `<div class="p-6"><b>SET ANGGARAN ${k}</b><div class="mt-4">${h}</div><button onclick="saveB()" class="w-full bg-primary text-white py-4 rounded-xl mt-4">SIMPAN ANGGARAN</button></div>`;
+    }
+    window.saveB = async () => {
+        let targets = {}; KATEGORI_PENGELUARAN.forEach(k => targets[k.id] = Number(document.getElementById('b-'+k.id).value));
+        const res = await apiCall('simpanAnggaran', { bulan: getMonthKey(), targets });
+        if(res.success) { showToast('Anggaran Update'); syncData(); navigate('home'); }
+    }
+
+    function renderSettings() {
+        document.getElementById('content-area').innerHTML = `
+            <div class="p-6">
+                <b>PENGATURAN</b>
+                <div class="mt-6"><p class="text-xs mb-1">GAS URL</p><input type="text" id="s-gas" value="${APP_STATE.gasUrl}" class="w-full p-3 border rounded-xl text-[10px] mb-4">
+                <button onclick="saveS()" class="w-full bg-primary text-white py-3 rounded-xl">UPDATE URL</button></div>
+            </div>`;
+    }
+    window.saveS = () => { localStorage.setItem('gas_url', document.getElementById('s-gas').value); location.reload(); }
+
+    window.bukaModalSaldo = (n) => { document.getElementById('modal-rek-nama').innerText = n; document.getElementById('modal-saldo').classList.remove('hidden'); }
+    window.closeModalSaldo = () => document.getElementById('modal-saldo').classList.add('hidden');
+    window.simpanSaldoAwal = async () => {
+        const res = await apiCall('updateSaldoAwal', { namaRekening: document.getElementById('modal-rek-nama').innerText, saldoBaru: Number(document.getElementById('modal-saldo-input').value) });
+        if(res.success) { closeModalSaldo(); syncData(); }
+    }
+
+    render();
+</script>
+</body>
+</html>
