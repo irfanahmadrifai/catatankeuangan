@@ -1,242 +1,381 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Keuangan Keluarga</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
-        .app-container { max-width: 480px; margin: 0 auto; background: #fafafa; min-height: 100vh; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .page-enter { animation: fadeIn 0.3s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
-        .bg-primary { background-color: #0f172a; }
-        .bg-accent { background-color: #3b82f6; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DompetKeluarga - Irfan & Leni</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* Menyembunyikan scrollbar untuk tampilan lebih bersih (Fintech style) */
+    ::-webkit-scrollbar { width: 0px; background: transparent; }
+    .nav-active { color: #10b981; } /* Emerald 500 */
+    .nav-inactive { color: #9ca3af; } /* Gray 400 */
+  </style>
 </head>
-<body>
+<body class="bg-gray-100 font-sans text-gray-800 antialiased selection:bg-emerald-200">
 
-<div class="app-container" id="app">
-    <div id="content-area" class="flex-1 overflow-y-auto hide-scrollbar pb-24"></div>
-    <nav id="bottom-nav" class="fixed bottom-0 w-full max-w-[480px] bg-white border-t border-slate-200 flex justify-between px-4 py-3 pb-safe hidden z-50 shadow-lg">
-        <button onclick="navigate('home')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="home"><i class="fas fa-home text-xl mb-1"></i><span class="text-[9px] font-bold">HOME</span></button>
-        <button onclick="navigate('rekening')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="rekening"><i class="fas fa-wallet text-xl mb-1"></i><span class="text-[9px] font-bold">BANK</span></button>
-        <button onclick="navigate('add')" class="relative -top-6 flex flex-col items-center justify-center w-14 h-14 bg-accent text-white rounded-full shadow-lg border-4 border-white"><i class="fas fa-plus text-xl"></i></button>
-        <button onclick="navigate('budget')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="budget"><i class="fas fa-bullseye text-xl mb-1"></i><span class="text-[9px] font-bold">BUDGET</span></button>
-        <button onclick="navigate('settings')" class="nav-btn flex flex-col items-center text-slate-400 w-14" data-target="settings"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[9px] font-bold">SETTING</span></button>
-    </nav>
-</div>
+  <div class="max-w-md mx-auto bg-gray-50 min-h-screen relative shadow-2xl overflow-hidden flex flex-col">
+    
+    <header class="bg-emerald-600 text-white p-4 shadow-md z-10 hidden" id="app-header">
+      <h1 class="text-xl font-bold tracking-wide">Dompet<span class="font-light">Keluarga</span></h1>
+      <p class="text-xs text-emerald-200" id="status-koneksi">Mode Offline (Data Lokal)</p>
+    </header>
 
-<div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-5 py-3 rounded-xl shadow-2xl transition-all duration-300 opacity-0 pointer-events-none z-[100] flex items-center space-x-3 text-sm">Notifikasi</div>
+    <main class="flex-1 overflow-y-auto pb-24" id="main-content">
+      
+      <div id="screen-pin" class="flex flex-col items-center justify-center h-full bg-emerald-600 text-white px-6">
+        <i class="fas fa-wallet text-6xl mb-6"></i>
+        <h2 class="text-2xl font-bold mb-2">Selamat Datang</h2>
+        <p class="text-sm text-emerald-200 mb-8 text-center">Masukkan PIN untuk mengakses catatan keuangan keluarga Anda.</p>
+        <input type="password" id="input-pin" class="w-full max-w-xs text-center text-2xl tracking-[0.5em] p-3 rounded-xl text-gray-800 focus:outline-none focus:ring-4 focus:ring-emerald-300" placeholder="••••••" maxlength="6">
+        <button onclick="login()" class="mt-6 bg-white text-emerald-600 font-bold w-full max-w-xs py-3 rounded-xl shadow-lg hover:bg-gray-100 transition">MASUK</button>
+      </div>
 
-<div id="modal-saldo" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden z-[60] flex items-center justify-center px-4">
-    <div class="bg-white rounded-3xl p-6 w-full max-w-sm">
-        <h3 class="text-lg font-bold mb-1">Update Saldo Awal</h3>
-        <p class="text-xs text-slate-500 mb-5" id="modal-rek-nama"></p>
-        <input type="number" id="modal-saldo-input" class="w-full p-4 text-2xl font-bold bg-slate-50 border rounded-xl outline-none mb-5" inputmode="numeric">
-        <div class="flex space-x-3">
-            <button onclick="closeModalSaldo()" class="w-1/2 py-3 bg-slate-100 font-bold rounded-xl">Batal</button>
-            <button onclick="simpanSaldoAwal()" class="w-1/2 py-3 bg-accent text-white font-bold rounded-xl">Simpan</button>
+      <div id="screen-dashboard" class="hidden p-4 space-y-6">
+        <div class="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl p-6 text-white shadow-lg">
+          <p class="text-sm font-medium opacity-80">Total Saldo Gabungan</p>
+          <h2 class="text-3xl font-bold mt-1" id="dash-total-saldo">Rp 0</h2>
         </div>
-    </div>
-</div>
 
-<script>
-    const KATEGORI_PENGELUARAN = [
-        { id: 'Keluarga', nama: 'Keluarga', icon: 'fa-users', color: 'bg-emerald-500' },
-        { id: 'Kebutuhan_Rumah', nama: 'Kebutuhan Rumah', icon: 'fa-home', color: 'bg-rose-500' },
-        { id: 'Sekolah', nama: 'Sekolah', icon: 'fa-graduation-cap', color: 'bg-amber-500' },
-        { id: 'Kendaraan', nama: 'Kendaraan', icon: 'fa-car', color: 'bg-purple-500' },
-        { id: 'Komunikasi', nama: 'Komunikasi', icon: 'fa-wifi', color: 'bg-blue-500' },
-        { id: 'Investasi', nama: 'Investasi', icon: 'fa-chart-line', color: 'bg-teal-500' },
-        { id: 'Kesehatan', nama: 'Kesehatan', icon: 'fa-heartbeat', color: 'bg-red-400' },
-        { id: 'Kebutuhan_Bayi', nama: 'Kebutuhan Bayi', icon: 'fa-baby-carriage', color: 'bg-pink-400' }
+        <div class="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+          <h3 class="font-semibold text-gray-600 mb-3 text-sm">Cashflow Bulan Ini</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs text-gray-400">Pemasukan</p>
+              <p class="text-sm font-bold text-emerald-500" id="dash-in">Rp 0</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">Pengeluaran</p>
+              <p class="text-sm font-bold text-rose-500" id="dash-out">Rp 0</p>
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-gray-50 flex justify-between items-center">
+            <span class="text-xs text-gray-400">Surplus / Sisa</span>
+            <span class="text-sm font-bold text-blue-500" id="dash-surplus">Rp 0</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h3 class="font-semibold text-gray-600 text-sm">5 Transaksi Terakhir</h3>
+          </div>
+          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden" id="dash-history">
+            </div>
+        </div>
+      </div>
+
+      <div id="screen-rekening" class="hidden p-4 space-y-4">
+        <h2 class="text-xl font-bold text-gray-800 mb-2">Manajemen Rekening</h2>
+        <div id="list-rekening" class="space-y-3">
+          </div>
+        <button onclick="simpanRekening()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow mt-4">Simpan Perubahan Saldo Awal</button>
+      </div>
+
+      <div id="screen-tambah" class="hidden p-4">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">Transaksi Baru</h2>
+        
+        <div class="flex bg-gray-200 rounded-xl p-1 mb-6">
+          <button onclick="setJenisTx('Pengeluaran')" id="tab-Pengeluaran" class="flex-1 py-2 rounded-lg text-sm font-bold bg-white shadow text-rose-500">Pengeluaran</button>
+          <button onclick="setJenisTx('Pemasukan')" id="tab-Pemasukan" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500">Pemasukan</button>
+          <button onclick="setJenisTx('Mutasi')" id="tab-Mutasi" class="flex-1 py-2 rounded-lg text-sm font-bold text-gray-500">Mutasi</button>
+        </div>
+
+        <form id="form-transaksi" class="space-y-4 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+          <input type="hidden" id="tx-jenis" value="Pengeluaran">
+          
+          <div>
+            <label class="text-xs text-gray-500 font-semibold">Tanggal</label>
+            <input type="date" id="tx-tanggal" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500" required>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-500 font-semibold">Nominal (Rp)</label>
+            <input type="number" id="tx-nominal" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 text-lg font-bold" placeholder="0" required>
+          </div>
+
+          <div id="wrap-kategori">
+            <label class="text-xs text-gray-500 font-semibold">Kategori</label>
+            <select id="tx-kategori" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 bg-white"></select>
+          </div>
+
+          <div id="wrap-rekening-1">
+            <label id="label-rek-1" class="text-xs text-gray-500 font-semibold">Sumber Dana</label>
+            <select id="tx-rek-1" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 bg-white"></select>
+          </div>
+
+          <div id="wrap-rekening-2" class="hidden">
+            <label class="text-xs text-gray-500 font-semibold">Tujuan Transfer</label>
+            <select id="tx-rek-2" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 bg-white"></select>
+          </div>
+
+          <div>
+            <label class="text-xs text-gray-500 font-semibold">Keterangan Catatan</label>
+            <input type="text" id="tx-keterangan" class="w-full mt-1 p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500" placeholder="Cth: Beli token listrik">
+          </div>
+
+          <button type="submit" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow mt-2" id="btn-submit-tx">Simpan Transaksi</button>
+        </form>
+      </div>
+
+      <div id="screen-anggaran" class="hidden p-4 space-y-4">
+        <div class="flex justify-between items-end mb-2">
+          <h2 class="text-xl font-bold text-gray-800">Budget Bulanan</h2>
+          <button onclick="simpanAnggaran()" class="text-sm bg-emerald-100 text-emerald-700 px-3 py-1 rounded-lg font-bold">Simpan</button>
+        </div>
+        <p class="text-xs text-gray-500 -mt-3 mb-4">Set target & pantau pengeluaran bulan ini.</p>
+        
+        <div id="list-anggaran" class="space-y-4">
+          </div>
+      </div>
+
+      <div id="screen-setting" class="hidden p-4 space-y-6">
+        <h2 class="text-xl font-bold text-gray-800 mb-2">Pengaturan</h2>
+        
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="font-bold text-sm text-gray-700 mb-3"><i class="fas fa-link text-emerald-500 mr-2"></i>Koneksi Database (GAS)</h3>
+          <p class="text-xs text-gray-500 mb-2">Masukkan URL Web App dari Google Apps Script untuk mode Online. Kosongkan untuk mode Offline (hanya tersimpan di HP ini).</p>
+          <input type="text" id="set-gas-url" class="w-full p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 text-sm mb-3" placeholder="https://script.google.com/macros/s/...">
+          <button onclick="saveSettings()" class="w-full bg-gray-800 text-white py-2 rounded-lg text-sm font-bold">Simpan URL & Sinkronisasi</button>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+          <h3 class="font-bold text-sm text-gray-700 mb-3"><i class="fas fa-lock text-emerald-500 mr-2"></i>Keamanan</h3>
+          <label class="text-xs text-gray-500">PIN Baru (6 Digit)</label>
+          <input type="password" id="set-pin" class="w-full p-2 border border-gray-200 rounded-lg outline-none focus:border-emerald-500 text-center tracking-[0.5em] mt-1 mb-3" placeholder="••••••" maxlength="6">
+          <button onclick="changePin()" class="w-full bg-gray-800 text-white py-2 rounded-lg text-sm font-bold">Ubah PIN</button>
+        </div>
+
+        <div class="text-center">
+            <button onclick="logout()" class="text-rose-500 font-bold text-sm mt-4"><i class="fas fa-sign-out-alt mr-2"></i>Kunci Aplikasi</button>
+        </div>
+      </div>
+
+    </main>
+
+    <nav class="bg-white border-t border-gray-200 flex justify-around items-center p-3 pb-safe absolute bottom-0 w-full z-20 hidden" id="bottom-nav">
+      <button onclick="nav('dashboard')" id="nav-dashboard" class="flex flex-col items-center nav-active">
+        <i class="fas fa-home text-xl mb-1"></i>
+        <span class="text-[10px] font-medium">Beranda</span>
+      </button>
+      <button onclick="nav('rekening')" id="nav-rekening" class="flex flex-col items-center nav-inactive">
+        <i class="fas fa-wallet text-xl mb-1"></i>
+        <span class="text-[10px] font-medium">Rekening</span>
+      </button>
+      
+      <div class="relative -top-6">
+        <button onclick="nav('tambah')" id="nav-tambah" class="bg-emerald-500 text-white h-14 w-14 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/40 border-4 border-gray-50">
+          <i class="fas fa-plus text-2xl"></i>
+        </button>
+      </div>
+
+      <button onclick="nav('anggaran')" id="nav-anggaran" class="flex flex-col items-center nav-inactive">
+        <i class="fas fa-chart-pie text-xl mb-1"></i>
+        <span class="text-[10px] font-medium">Anggaran</span>
+      </button>
+      <button onclick="nav('setting')" id="nav-setting" class="flex flex-col items-center nav-inactive">
+        <i class="fas fa-cog text-xl mb-1"></i>
+        <span class="text-[10px] font-medium">Setting</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <script>
+    // --- KONFIGURASI AWAL ---
+    const KATEGORI_PENGELUARAN = ["Keluarga", "Kebutuhan Rumah", "Sekolah", "Kendaraan", "Komunikasi", "Investasi", "Kesehatan", "Kebutuhan Bayi"];
+    const KATEGORI_PEMASUKAN = ["Gaji", "Insentif", "Bonus / Lainnya"];
+    const DEFAULT_REKENING = [
+      {nama: "Irfan Gaji (BSI : 7220471815)", saldoAwal: 0},
+      {nama: "Irfan Tabungan (BSI : 7220471815)", saldoAwal: 0},
+      {nama: "Leni (BSI : 6445914660)", saldoAwal: 0}
     ];
 
-    const APP_STATE = {
-        isLoggedIn: false, currentPage: 'login', pin: localStorage.getItem('app_pin') || '123456',
-        gasUrl: localStorage.getItem('gas_url') || '',
-        data: { transaksi: [], rekening: [], anggaran: {} }, isLoading: false
+    // --- STATE MANAGEMENT ---
+    let appState = {
+      pin: localStorage.getItem('app_pin') || '123456',
+      gasUrl: localStorage.getItem('gas_url') || '',
+      data: JSON.parse(localStorage.getItem('app_data')) || {
+        rekening: [...DEFAULT_REKENING],
+        anggaran: KATEGORI_PENGELUARAN.map(k => ({kategori: k, target: 0})),
+        transaksi: []
+      }
     };
 
-    const formatRp = (n) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(n);
-    const getMonthKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
+    let saldoAktual = {};
 
-    function showToast(msg, type='success') {
-        const t = document.getElementById('toast'); t.innerText = msg;
-        t.classList.remove('opacity-0'); setTimeout(() => t.classList.add('opacity-0'), 2500);
+    // --- INISIALISASI ---
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("tx-tanggal").valueAsDate = new Date();
+      document.getElementById("set-gas-url").value = appState.gasUrl;
+      checkConnection();
+    });
+
+    // --- FUNGSI FORMAT RUPIAH ---
+    const formatRp = (angka) => new Intl.NumberFormat("id-ID", {style: "currency", currency: "IDR", maximumFractionDigits: 0}).format(angka);
+
+    // --- LOGIC: LOGIN & NAVIGASI ---
+    function login() {
+      const input = document.getElementById('input-pin').value;
+      if(input === appState.pin) {
+        document.getElementById('screen-pin').classList.add('hidden');
+        document.getElementById('app-header').classList.remove('hidden');
+        document.getElementById('bottom-nav').classList.remove('hidden');
+        if(appState.gasUrl) fetchDataGAS(); // Sinkronisasi otomatis jika ada URL
+        updateAllUI();
+        nav('dashboard');
+      } else {
+        alert("PIN Salah!");
+        document.getElementById('input-pin').value = '';
+      }
     }
 
-    async function apiCall(action, data) {
-        if (!APP_STATE.gasUrl) return { success: false };
-        try {
-            const res = await fetch(APP_STATE.gasUrl, { method: 'POST', body: JSON.stringify({ action, data }) });
-            return await res.json();
-        } catch (e) { return { success: false }; }
+    function logout() {
+      ['dashboard','rekening','tambah','anggaran','setting'].forEach(s => document.getElementById(`screen-${s}`).classList.add('hidden'));
+      document.getElementById('app-header').classList.add('hidden');
+      document.getElementById('bottom-nav').classList.add('hidden');
+      document.getElementById('screen-pin').classList.remove('hidden');
+      document.getElementById('input-pin').value = '';
     }
 
-    async function syncData() {
-        if (!APP_STATE.gasUrl) return; APP_STATE.isLoading = true; render();
-        const res = await apiCall('getSemuaData');
-        if (res.success) { APP_STATE.data = res; }
-        APP_STATE.isLoading = false; render();
-    }
-
-    function hitungRekening() {
-        let rek = {}; let total = 0;
-        APP_STATE.data.rekening.forEach(r => rek[r.nama] = { ...r, masuk:0, keluar:0, akhir:r.saldoAwal });
-        APP_STATE.data.transaksi.forEach(t => {
-            if (t.jenis === 'Mutasi') {
-                const parts = t.rekening.split(' | ');
-                if (rek[parts[0]]) { rek[parts[0]].keluar += t.nominal; rek[parts[0]].akhir -= t.nominal; }
-                if (rek[parts[1]]) { rek[parts[1]].masuk += t.nominal; rek[parts[1]].akhir += t.nominal; }
-            } else if (rek[t.rekening]) {
-                if (t.jenis === 'Masuk') { rek[t.rekening].masuk += t.nominal; rek[t.rekening].akhir += t.nominal; }
-                else { rek[t.rekening].keluar += t.nominal; rek[t.rekening].akhir -= t.nominal; }
-            }
-        });
-        Object.values(rek).forEach(r => total += r.akhir);
-        return { list: Object.values(rek), total };
-    }
-
-    function navigate(p) { APP_STATE.currentPage = p; render(); }
-
-    function render() {
-        const area = document.getElementById('content-area'); area.innerHTML = '';
-        const nav = document.getElementById('bottom-nav');
-        if (APP_STATE.isLoading) { area.innerHTML = '<div class="flex h-full items-center justify-center"><i class="fas fa-spinner fa-spin text-3xl text-accent"></i></div>'; return; }
-        if (APP_STATE.currentPage === 'login') { nav.classList.add('hidden'); renderLogin(); }
-        else { nav.classList.remove('hidden'); 
-            if (APP_STATE.currentPage === 'home') renderHome();
-            if (APP_STATE.currentPage === 'rekening') renderRekening();
-            if (APP_STATE.currentPage === 'add') renderAdd();
-            if (APP_STATE.currentPage === 'budget') renderBudget();
-            if (APP_STATE.currentPage === 'settings') renderSettings();
+    function nav(target) {
+      // Hide all screens
+      ['dashboard','rekening','tambah','anggaran','setting'].forEach(s => document.getElementById(`screen-${s}`).classList.add('hidden'));
+      document.getElementById(`screen-${target}`).classList.remove('hidden');
+      
+      // Update icon colors
+      ['dashboard','rekening','anggaran','setting'].forEach(s => {
+        let el = document.getElementById(`nav-${s}`);
+        if(el) {
+          el.classList.remove('nav-active');
+          el.classList.add('nav-inactive');
         }
+      });
+      if(target !== 'tambah') {
+        document.getElementById(`nav-${target}`).classList.add('nav-active');
+        document.getElementById(`nav-${target}`).classList.remove('nav-inactive');
+      }
     }
 
-    function renderLogin() {
-        document.getElementById('content-area').innerHTML = `
-            <div class="flex flex-col items-center justify-center h-screen bg-primary px-6">
-                <div class="bg-white p-8 rounded-[30px] w-full text-center">
-                    <h1 class="text-2xl font-bold mb-8">PIN KELUARGA</h1>
-                    <input type="password" id="pin-i" class="w-full text-center text-3xl border-b-2 outline-none mb-8" maxlength="6" inputmode="numeric">
-                    <button onclick="doLogin()" class="w-full bg-primary text-white py-4 rounded-xl font-bold">MASUK</button>
-                </div>
-            </div>`;
-    }
-    window.doLogin = () => { if(document.getElementById('pin-i').value === APP_STATE.pin) { APP_STATE.isLoggedIn=true; syncData(); navigate('home'); } };
+    // --- LOGIC: PERHITUNGAN KEUANGAN ---
+    function hitungKeuangan() {
+      // 1. Reset Saldo Aktual ke Saldo Awal
+      saldoAktual = {};
+      appState.data.rekening.forEach(r => saldoAktual[r.nama] = r.saldoAwal);
 
-    function renderHome() {
-        const info = hitungRekening();
-        let trxH = APP_STATE.data.transaksi.slice(0,5).map(t => `
-            <div class="flex justify-between py-3 border-b text-sm">
-                <div><p class="font-bold">${t.kategori || 'Mutasi'}</p><p class="text-[10px] text-slate-400">${t.rekening}</p></div>
-                <p class="font-bold ${t.jenis==='Masuk'?'text-emerald-600':'text-slate-800'}">${t.jenis==='Masuk'?'+':'-'}${formatRp(t.nominal)}</p>
-            </div>`).join('');
-        document.getElementById('content-area').innerHTML = `
-            <div class="bg-primary p-10 text-center text-white rounded-b-[40px]">
-                <p class="text-xs opacity-60">TOTAL SALDO</p>
-                <h1 class="text-3xl font-bold">${formatRp(info.total)}</h1>
+      // 2. Kalkulasi berdasarkan Transaksi
+      let totalMasukBulanIni = 0;
+      let totalKeluarBulanIni = 0;
+      const bulanIni = new Date().toISOString().substring(0,7); // YYYY-MM
+      
+      // Hitung pengeluaran per kategori untuk Anggaran
+      let realisasiAnggaran = {};
+      appState.data.anggaran.forEach(a => realisasiAnggaran[a.kategori] = 0);
+
+      appState.data.transaksi.forEach(tx => {
+        const isBulanIni = tx.tanggal.substring(0,7) === bulanIni;
+
+        if(tx.jenis === "Pemasukan") {
+          if(saldoAktual[tx.keRekening] !== undefined) saldoAktual[tx.keRekening] += tx.nominal;
+          if(isBulanIni) totalMasukBulanIni += tx.nominal;
+        } 
+        else if(tx.jenis === "Pengeluaran") {
+          if(saldoAktual[tx.dariRekening] !== undefined) saldoAktual[tx.dariRekening] -= tx.nominal;
+          if(isBulanIni) {
+            totalKeluarBulanIni += tx.nominal;
+            if(realisasiAnggaran[tx.kategori] !== undefined) realisasiAnggaran[tx.kategori] += tx.nominal;
+          }
+        }
+        else if(tx.jenis === "Mutasi") {
+          if(saldoAktual[tx.dariRekening] !== undefined) saldoAktual[tx.dariRekening] -= tx.nominal;
+          if(saldoAktual[tx.keRekening] !== undefined) saldoAktual[tx.keRekening] += tx.nominal;
+        }
+      });
+
+      return { totalMasukBulanIni, totalKeluarBulanIni, realisasiAnggaran };
+    }
+
+    // --- LOGIC: UPDATE UI ---
+    function updateAllUI() {
+      const calc = hitungKeuangan();
+      
+      // 1. UPDATE DASHBOARD
+      let totalSaldoAll = Object.values(saldoAktual).reduce((a,b) => a+b, 0);
+      document.getElementById('dash-total-saldo').innerText = formatRp(totalSaldoAll);
+      document.getElementById('dash-in').innerText = formatRp(calc.totalMasukBulanIni);
+      document.getElementById('dash-out').innerText = formatRp(calc.totalKeluarBulanIni);
+      document.getElementById('dash-surplus').innerText = formatRp(calc.totalMasukBulanIni - calc.totalKeluarBulanIni);
+
+      // History
+      let histHTML = '';
+      const recentTx = [...appState.data.transaksi].reverse().slice(0, 5);
+      if(recentTx.length === 0) histHTML = '<p class="p-4 text-center text-xs text-gray-400">Belum ada transaksi.</p>';
+      recentTx.forEach(tx => {
+        let icon = tx.jenis === 'Pemasukan' ? '<i class="fas fa-arrow-down text-emerald-500 bg-emerald-100 p-2 rounded-full"></i>' : 
+                   tx.jenis === 'Pengeluaran' ? '<i class="fas fa-arrow-up text-rose-500 bg-rose-100 p-2 rounded-full"></i>' :
+                   '<i class="fas fa-exchange-alt text-blue-500 bg-blue-100 p-2 rounded-full"></i>';
+        let warnaNominal = tx.jenis === 'Pengeluaran' ? 'text-rose-500' : tx.jenis === 'Pemasukan' ? 'text-emerald-500' : 'text-gray-700';
+        histHTML += `
+          <div class="flex items-center justify-between p-3 border-b border-gray-50 last:border-0">
+            <div class="flex items-center gap-3">
+              ${icon}
+              <div>
+                <p class="text-xs font-bold text-gray-700">${tx.kategori}</p>
+                <p class="text-[10px] text-gray-400">${tx.tanggal} • ${tx.keterangan || '-'}</p>
+              </div>
             </div>
-            <div class="p-6">
-                <h3 class="font-bold mb-4">Transaksi Terakhir</h3>
-                <div class="bg-white p-4 rounded-2xl shadow-sm">${trxH || 'Kosong'}</div>
-            </div>`;
-    }
+            <p class="text-xs font-bold ${warnaNominal}">${formatRp(tx.nominal)}</p>
+          </div>
+        `;
+      });
+      document.getElementById('dash-history').innerHTML = histHTML;
 
-    function renderRekening() {
-        const info = hitungRekening();
-        let h = info.list.map(r => `
-            <div class="bg-white p-5 rounded-2xl mb-4 shadow-sm border">
-                <div class="flex justify-between mb-4"><b>${r.nama}</b><b class="text-accent">${formatRp(r.akhir)}</b></div>
-                <div class="grid grid-cols-3 gap-2 text-[10px] text-center">
-                    <div onclick="bukaModalSaldo('${r.nama}')" class="bg-slate-50 p-2 rounded">AWAL<br>${formatRp(r.saldoAwal)}</div>
-                    <div class="bg-emerald-50 p-2 rounded text-emerald-600">MASUK<br>${formatRp(r.masuk)}</div>
-                    <div class="bg-rose-50 p-2 rounded text-rose-600">KELUAR<br>${formatRp(r.keluar)}</div>
-                </div>
-            </div>`).join('');
-        document.getElementById('content-area').innerHTML = `<div class="p-6"><b>DOMPET BSI</b><div class="mt-4">${h}</div></div>`;
-    }
+      // 2. UPDATE REKENING
+      let rekHTML = '';
+      appState.data.rekening.forEach((r, idx) => {
+        rekHTML += `
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <p class="text-sm font-bold text-gray-700 mb-2">${r.nama}</p>
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-xs text-gray-500">Saldo Akhir Aktual:</span>
+              <span class="text-sm font-bold text-emerald-600">${formatRp(saldoAktual[r.nama])}</span>
+            </div>
+            <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg">
+              <span class="text-xs text-gray-500">Atur Saldo Awal: Rp</span>
+              <input type="number" id="input-rek-${idx}" value="${r.saldoAwal}" class="w-1/2 p-1 text-right text-sm border border-gray-200 rounded outline-none focus:border-emerald-500">
+            </div>
+          </div>
+        `;
+      });
+      document.getElementById('list-rekening').innerHTML = rekHTML;
 
-    function renderAdd() {
-        const reks = APP_STATE.data.rekening.map(r => `<option value="${r.nama}">${r.nama}</option>`).join('');
-        document.getElementById('content-area').innerHTML = `
-            <div class="p-6">
-                <b class="text-xl">Catat Baru</b>
-                <div class="flex bg-slate-100 p-1 rounded-xl mt-4 mb-6">
-                    <button onclick="setT('Keluar')" id="t-k" class="w-1/3 py-2 bg-white rounded-lg shadow-sm text-xs font-bold">Keluar</button>
-                    <button onclick="setT('Masuk')" id="t-m" class="w-1/3 py-2 text-xs font-bold">Masuk</button>
-                    <button onclick="setT('Mutasi')" id="t-t" class="w-1/3 py-2 text-xs font-bold">Mutasi</button>
-                </div>
-                <input type="hidden" id="i-j" value="Keluar">
-                <input type="number" id="i-n" placeholder="Nominal Rp" class="w-full p-4 text-2xl font-bold border rounded-xl mb-4" inputmode="numeric">
-                <div id="box-k"><select id="i-k" class="w-full p-4 border rounded-xl mb-4"></select></div>
-                <div id="box-r"><select id="i-r" class="w-full p-4 border rounded-xl mb-4">${reks}</select></div>
-                <div id="box-t" class="hidden"><select id="i-r1" class="w-full p-4 border rounded-xl mb-2">${reks}</select><select id="i-r2" class="w-full p-4 border rounded-xl mb-4">${reks}</select></div>
-                <input type="text" id="i-ket" placeholder="Keterangan" class="w-full p-4 border rounded-xl mb-6">
-                <button onclick="saveT()" class="w-full bg-accent text-white py-4 rounded-xl font-bold">SIMPAN</button>
-            </div>`;
-        window.setT('Keluar');
-    }
+      // 3. UPDATE DROPDOWN TAMBAH TRANSAKSI
+      const opRek = appState.data.rekening.map(r => `<option value="${r.nama}">${r.nama}</option>`).join('');
+      document.getElementById('tx-rek-1').innerHTML = opRek;
+      document.getElementById('tx-rek-2').innerHTML = opRek;
+      setJenisTx(document.getElementById('tx-jenis').value); // reset options
 
-    window.setT = (v) => {
-        document.getElementById('i-j').value = v;
-        ['t-k','t-m','t-t'].forEach(b => document.getElementById(b).className = "w-1/3 py-2 text-xs font-bold");
-        document.getElementById(v === 'Keluar' ? 't-k' : v === 'Masuk' ? 't-m' : 't-t').className = "w-1/3 py-2 bg-white rounded-lg shadow-sm text-xs font-bold";
-        document.getElementById('box-k').className = v === 'Mutasi' ? 'hidden' : '';
-        document.getElementById('box-r').className = v === 'Mutasi' ? 'hidden' : '';
-        document.getElementById('box-t').className = v === 'Mutasi' ? '' : 'hidden';
-        if(v !== 'Mutasi') document.getElementById('i-k').innerHTML = v === 'Masuk' ? '<option>Gaji</option><option>Insentif</option><option>Bonus</option>' : KATEGORI_PENGELUARAN.map(k=>`<option value="${k.id}">${k.nama}</option>`).join('');
-    }
+      // 4. UPDATE ANGGARAN
+      let angHTML = '';
+      appState.data.anggaran.forEach((a, idx) => {
+        let terpakai = calc.realisasiAnggaran[a.kategori] || 0;
+        let target = a.target;
+        let persen = target === 0 ? 0 : Math.min(100, (terpakai / target) * 100);
+        let colorBar = terpakai > target ? 'bg-rose-500' : 'bg-emerald-500';
+        let colorText = terpakai > target ? 'text-rose-500' : 'text-gray-600';
 
-    window.saveT = async () => {
-        const jenis = document.getElementById('i-j').value;
-        const nominal = Number(document.getElementById('i-n').value);
-        let rek = document.getElementById('i-r').value;
-        let kat = document.getElementById('i-k').value;
-        if(jenis === 'Mutasi') { rek = document.getElementById('i-r1').value + ' | ' + document.getElementById('i-r2').value; kat = 'Mutasi'; }
-        const res = await apiCall('tambahTransaksi', { tanggal: new Date().toISOString().split('T')[0], jenis, nominal, rekening: rek, kategori: kat, keterangan: document.getElementById('i-ket').value });
-        if(res.success) { showToast('Tersimpan'); syncData(); navigate('home'); }
-    }
-
-    function renderBudget() {
-        const k = getMonthKey(); const a = APP_STATE.data.anggaran[k] || {};
-        let h = KATEGORI_PENGELUARAN.map(kat => `
-            <div class="mb-4 bg-white p-4 rounded-xl border">
-                <p class="text-[10px] font-bold text-slate-400">${kat.nama}</p>
-                <input type="number" id="b-${kat.id}" value="${a[kat.id]||''}" class="w-full p-2 border-b outline-none font-bold" placeholder="0">
-            </div>`).join('');
-        document.getElementById('content-area').innerHTML = `<div class="p-6"><b>SET ANGGARAN ${k}</b><div class="mt-4">${h}</div><button onclick="saveB()" class="w-full bg-primary text-white py-4 rounded-xl mt-4">SIMPAN ANGGARAN</button></div>`;
-    }
-    window.saveB = async () => {
-        let targets = {}; KATEGORI_PENGELUARAN.forEach(k => targets[k.id] = Number(document.getElementById('b-'+k.id).value));
-        const res = await apiCall('simpanAnggaran', { bulan: getMonthKey(), targets });
-        if(res.success) { showToast('Anggaran Update'); syncData(); navigate('home'); }
-    }
-
-    function renderSettings() {
-        document.getElementById('content-area').innerHTML = `
-            <div class="p-6">
-                <b>PENGATURAN</b>
-                <div class="mt-6"><p class="text-xs mb-1">GAS URL</p><input type="text" id="s-gas" value="${APP_STATE.gasUrl}" class="w-full p-3 border rounded-xl text-[10px] mb-4">
-                <button onclick="saveS()" class="w-full bg-primary text-white py-3 rounded-xl">UPDATE URL</button></div>
-            </div>`;
-    }
-    window.saveS = () => { localStorage.setItem('gas_url', document.getElementById('s-gas').value); location.reload(); }
-
-    window.bukaModalSaldo = (n) => { document.getElementById('modal-rek-nama').innerText = n; document.getElementById('modal-saldo').classList.remove('hidden'); }
-    window.closeModalSaldo = () => document.getElementById('modal-saldo').classList.add('hidden');
-    window.simpanSaldoAwal = async () => {
-        const res = await apiCall('updateSaldoAwal', { namaRekening: document.getElementById('modal-rek-nama').innerText, saldoBaru: Number(document.getElementById('modal-saldo-input').value) });
-        if(res.success) { closeModalSaldo(); syncData(); }
-    }
-
-    render();
-</script>
-</body>
-</html>
+        angHTML += `
+          <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-sm font-bold text-gray-700">${a.kategori}</span>
+              <div class="flex items-center">
+                <span class="text-xs text-gray-400 mr-2">Target: Rp</span>
+                <input type="number" id="input-ang-${idx}" value="${target}" class="w-24 p-1 text-right text-sm border border-gray-200 rounded outline-none focus:border-emerald-500 bg-gray-50">
+              </div>
+            </div>
+            <div class="flex justify-between text-[10px] mt-2 mb-1 ${colorText}">
+              <span>Terpakai: ${formatRp(terpakai)}</span>
+              <span>${terpakai > target ? 'OVERBUDGET!' : ''}</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-1.5">
+              <div class="${colorBar} h-1.5 rounded-full" style="width: ${pers
