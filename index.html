@@ -270,4 +270,165 @@
       });
       document.getElementById('app-header').classList.add('hidden');
       document.getElementById('bottom-nav').classList.add('hidden');
-    
+      <script>
+    window.onerror = function(msg, url, lineNo, columnNo, error) {
+      document.getElementById('debug-log').innerHTML += `Error: ${msg} <br>`;
+      return false;
+    };
+
+    const KAT_OUT = ["Keluarga", "Kebutuhan Rumah", "Sekolah", "Kendaraan", "Komunikasi", "Investasi", "Kesehatan", "Kebutuhan Bayi"];
+    const KAT_IN = ["Gaji", "Insentif", "Bonus / Lainnya"];
+    const DEFAULT_REK = [ {nama: "Irfan Gaji (BSI : 7220471815)", saldoAwal: 0}, {nama: "Irfan Tabungan (BSI : 7220471815)", saldoAwal: 0}, {nama: "Leni (BSI : 6445914660)", saldoAwal: 0} ];
+
+    let appState = {
+      pin: '123456',
+      gasUrl: '', // Dikosongkan, masukkan via menu Setting nanti
+      data: { rekening: JSON.parse(JSON.stringify(DEFAULT_REK)), anggaran: KAT_OUT.map(k => ({kategori: k, target: 0})), transaksi: [] }
+    };
+
+    let saldoAktual = {};
+    const formatRp = (angka) => new Intl.NumberFormat("id-ID", {style: "currency", currency: "IDR", maximumFractionDigits: 0}).format(angka || 0);
+
+    try {
+      if(localStorage.getItem('app_pin')) appState.pin = localStorage.getItem('app_pin');
+      let gasLokal = localStorage.getItem('gas_url');
+      if(gasLokal) appState.gasUrl = gasLokal;
+      let rawData = localStorage.getItem('app_data');
+      if(rawData) {
+        let parsed = JSON.parse(rawData);
+        if(parsed && parsed.rekening && parsed.anggaran && parsed.transaksi) appState.data = parsed;
+      }
+    } catch(e) { console.warn("Storage reset"); }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      try {
+        let elTgl = document.getElementById("tx-tanggal"); if(elTgl) elTgl.valueAsDate = new Date();
+        let elUrl = document.getElementById("set-gas-url"); if(elUrl) elUrl.value = appState.gasUrl;
+      } catch(e) { console.error(e); }
+    });
+
+    function forceLogin() {
+      const input = document.getElementById('input-pin').value;
+      const errorMsg = document.getElementById('error-msg');
+      if(input === appState.pin || input === '123456') {
+        errorMsg.classList.add('hidden');
+        document.getElementById('btn-login').innerText = "MEMUAT...";
+        setTimeout(() => {
+            document.getElementById('screen-pin').style.display = 'none';
+            document.getElementById('app-header').classList.remove('hidden');
+            document.getElementById('bottom-nav').classList.remove('hidden');
+            document.getElementById('screen-dashboard').classList.remove('hidden');
+            try {
+                if(input === '123456' && appState.pin !== '123456') { appState.pin = '123456'; localStorage.setItem('app_pin', '123456'); }
+                updateAllUI();
+                if(appState.gasUrl) fetchDataGAS();
+            } catch(e) {}
+        }, 300);
+      } else {
+        errorMsg.innerText = "PIN Salah! (Gunakan 123456)"; errorMsg.classList.remove('hidden'); document.getElementById('input-pin').value = '';
+      }
+    }
+
+    function logout() {
+      ['dashboard','rekening','tambah','anggaran','setting'].forEach(s => { let scr = document.getElementById(`screen-${s}`); if(scr) scr.classList.add('hidden'); });
+      document.getElementById('app-header').classList.add('hidden'); document.getElementById('bottom-nav').classList.add('hidden');
+      document.getElementById('screen-pin').style.display = 'flex'; document.getElementById('input-pin').value = ''; document.getElementById('btn-login').innerText = "MASUK";
+    }
+
+    function nav(target) {
+      ['dashboard','rekening','tambah','anggaran','setting'].forEach(s => {
+        let scr = document.getElementById(`screen-${s}`); if(scr) scr.classList.add('hidden');
+        let el = document.getElementById(`nav-${s}`); if(el) { el.classList.remove('nav-active'); el.classList.add('nav-inactive'); }
+      });
+      let tgScr = document.getElementById(`screen-${target}`); if(tgScr) tgScr.classList.remove('hidden');
+      if(target !== 'tambah') { let navTg = document.getElementById(`nav-${target}`); if(navTg) { navTg.classList.add('nav-active'); navTg.classList.remove('nav-inactive'); } }
+    }
+          function hitungKeuangan() {
+      saldoAktual = {}; appState.data.rekening.forEach(r => saldoAktual[r.nama] = r.saldoAwal || 0);
+      let totalMasuk = 0, totalKeluar = 0; let bulanIni = new Date().toISOString().substring(0,7);
+      let realAnggaran = {}; appState.data.anggaran.forEach(a => realAnggaran[a.kategori] = 0);
+      if(appState.data.transaksi) {
+          appState.data.transaksi.forEach(tx => {
+            if(!tx || !tx.tanggal) return;
+            let isBulanIni = tx.tanggal.substring(0,7) === bulanIni; let nom = Number(tx.nominal) || 0;
+            if(tx.jenis === "Pemasukan") {
+              if(saldoAktual[tx.keRekening] !== undefined) saldoAktual[tx.keRekening] += nom;
+              if(isBulanIni) totalMasuk += nom;
+            } else if(tx.jenis === "Pengeluaran") {
+              if(saldoAktual[tx.dariRekening] !== undefined) saldoAktual[tx.dariRekening] -= nom;
+              if(isBulanIni) { totalKeluar += nom; if(realAnggaran[tx.kategori] !== undefined) realAnggaran[tx.kategori] += nom; }
+            } else if(tx.jenis === "Mutasi") {
+              if(saldoAktual[tx.dariRekening] !== undefined) saldoAktual[tx.dariRekening] -= nom;
+              if(saldoAktual[tx.keRekening] !== undefined) saldoAktual[tx.keRekening] += nom;
+            }
+          });
+      }
+      return { totalMasuk, totalKeluar, realAnggaran };
+    }
+
+    function updateAllUI() {
+      const calc = hitungKeuangan();
+      document.getElementById('dash-total-saldo').innerText = formatRp(Object.values(saldoAktual).reduce((a,b)=>a+b,0));
+      document.getElementById('dash-in').innerText = formatRp(calc.totalMasuk); document.getElementById('dash-out').innerText = formatRp(calc.totalKeluar); document.getElementById('dash-surplus').innerText = formatRp(calc.totalMasuk - calc.totalKeluar);
+      let histHTML = ''; let txs = appState.data.transaksi ? [...appState.data.transaksi].reverse().slice(0, 5) : [];
+      if(txs.length === 0) histHTML = '<p class="p-5 text-center text-xs text-gray-400">Belum ada transaksi.</p>';
+      txs.forEach(tx => {
+        let icon = tx.jenis === 'Pemasukan' ? '<i class="fas fa-arrow-down text-emerald-600 bg-emerald-100 p-3 rounded-xl"></i>' : tx.jenis === 'Pengeluaran' ? '<i class="fas fa-arrow-up text-rose-600 bg-rose-100 p-3 rounded-xl"></i>' : '<i class="fas fa-exchange-alt text-blue-600 bg-blue-100 p-3 rounded-xl"></i>';
+        let warna = tx.jenis === 'Pengeluaran' ? 'text-rose-600' : tx.jenis === 'Pemasukan' ? 'text-emerald-600' : 'text-gray-900';
+        histHTML += `<div class="flex justify-between p-4 border-b border-gray-100"><div class="flex gap-4">${icon}<div><p class="text-sm font-bold">${tx.kategori}</p><p class="text-[10px] text-gray-400">${tx.tanggal} • ${tx.keterangan||'-'}</p></div></div><p class="text-xs font-bold ${warna}">${formatRp(tx.nominal)}</p></div>`;
+      });
+      document.getElementById('dash-history').innerHTML = histHTML;
+      let rekHTML = '';
+      appState.data.rekening.forEach((r, idx) => {
+        rekHTML += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 space-y-3"><div class="flex justify-between"><p class="font-bold text-gray-800">${r.nama}</p></div><div class="flex justify-between border-b border-gray-100 pb-2"><span class="text-xs text-gray-500">Saldo Aktual:</span><span class="font-bold text-emerald-600">${formatRp(saldoAktual[r.nama])}</span></div><div class="flex justify-between bg-gray-50 p-3 rounded-xl"><span class="text-xs">Saldo Awal:</span><input type="number" id="input-rek-${idx}" value="${r.saldoAwal}" class="w-1/2 p-1 text-right border outline-none font-bold rounded"></div></div>`;
+      });
+      document.getElementById('list-rekening').innerHTML = rekHTML;
+      const opRek = appState.data.rekening.map(r => `<option value="${r.nama}">${r.nama}</option>`).join('');
+      document.getElementById('tx-rek-1').innerHTML = opRek; document.getElementById('tx-rek-2').innerHTML = opRek;
+      setJenisTx(document.getElementById('tx-jenis').value || 'Pengeluaran'); 
+      let angHTML = '';
+      appState.data.anggaran.forEach((a, idx) => {
+        let terpakai = calc.realAnggaran[a.kategori] || 0; let trg = Number(a.target) || 0; let p = trg === 0 ? 0 : Math.min(100, (terpakai / trg) * 100); let cBar = terpakai > trg ? 'bg-rose-500' : 'bg-emerald-500';
+        angHTML += `<div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100"><div class="flex justify-between mb-2"><span class="font-bold">${a.kategori}</span><input type="number" id="input-ang-${idx}" value="${trg}" class="w-24 text-right border rounded font-bold"></div><div class="flex justify-between text-xs mb-1"><span>Pakai: ${formatRp(terpakai)}</span></div><div class="w-full bg-gray-200 rounded-full h-2"><div class="${cBar} h-2 rounded-full" style="width: ${p}%"></div></div></div>`;
+      });
+      document.getElementById('list-anggaran').innerHTML = angHTML;
+    }
+
+    function setJenisTx(jenis) {
+      document.getElementById('tx-jenis').value = jenis;
+      ['Pengeluaran','Pemasukan','Mutasi'].forEach(j => {
+        let btn = document.getElementById(`tab-${j}`); if(!btn) return;
+        btn.className = `flex-1 py-3 rounded-xl text-base font-bold ${jenis === j ? 'bg-white shadow-inner' : 'text-gray-500'}`;
+        if(jenis===j && j==='Pengeluaran') btn.classList.add('text-rose-600'); if(jenis===j && j==='Pemasukan') btn.classList.add('text-emerald-600'); if(jenis===j && j==='Mutasi') btn.classList.add('text-blue-600');
+      });
+      let ek = document.getElementById('tx-kategori'), wK = document.getElementById('wrap-kategori'), l1 = document.getElementById('label-rek-1'), wR2 = document.getElementById('wrap-rekening-2');
+      if(jenis === "Pengeluaran") { wK.classList.remove('hidden'); ek.innerHTML = KAT_OUT.map(k=>`<option value="${k}">${k}</option>`).join(''); l1.innerText = "Sumber Dana"; wR2.classList.add('hidden'); } 
+      else if(jenis === "Pemasukan") { wK.classList.remove('hidden'); ek.innerHTML = KAT_IN.map(k=>`<option value="${k}">${k}</option>`).join(''); l1.innerText = "Simpan Ke"; wR2.classList.add('hidden'); }
+      else { wK.classList.add('hidden'); ek.innerHTML = `<option value="Transfer">Transfer</option>`; l1.innerText = "Dari Rekening"; wR2.classList.remove('hidden'); }
+    }
+
+    document.getElementById('form-transaksi').addEventListener('submit', function(e) {
+      e.preventDefault(); let j = document.getElementById('tx-jenis').value;
+      let tx = { tanggal: document.getElementById('tx-tanggal').value, jenis: j, kategori: j === "Mutasi" ? "Transfer" : document.getElementById('tx-kategori').value, nominal: Number(document.getElementById('tx-nominal').value), dariRekening: (j==="Pengeluaran"||j==="Mutasi") ? document.getElementById('tx-rek-1').value : "", keRekening: (j==="Pemasukan") ? document.getElementById('tx-rek-1').value : (j==="Mutasi" ? document.getElementById('tx-rek-2').value : ""), keterangan: document.getElementById('tx-keterangan').value };
+      appState.data.transaksi.push(tx); try { localStorage.setItem('app_data', JSON.stringify(appState.data)); } catch(e){}
+      document.getElementById('btn-submit-tx').innerText = "Menyimpan ke Sheet...";
+      if(appState.gasUrl) { postDataGAS({action:"add_transaksi", data:tx}).finally(()=>resetF()); } else { resetF(); }
+    });
+
+    function resetF() { document.getElementById('tx-nominal').value = ''; document.getElementById('tx-keterangan').value = ''; document.getElementById('btn-submit-tx').innerText = "Simpan Transaksi"; updateAllUI(); nav('dashboard'); alert("Transaksi Tersimpan!"); }
+    function simpanRekening() { appState.data.rekening.forEach((r, i) => { let el = document.getElementById(`input-rek-${i}`); if(el) r.saldoAwal = Number(el.value); }); try { localStorage.setItem('app_data', JSON.stringify(appState.data)); } catch(e){} if(appState.gasUrl) postDataGAS({action:"update_rekening", data:appState.data.rekening}); updateAllUI(); alert("Saldo Disimpan"); }
+    function simpanAnggaran() { appState.data.anggaran.forEach((a, i) => { let el = document.getElementById(`input-ang-${i}`); if(el) a.target = Number(el.value); }); try { localStorage.setItem('app_data', JSON.stringify(appState.data)); } catch(e){} if(appState.gasUrl) postDataGAS({action:"update_anggaran", data:appState.data.anggaran}); updateAllUI(); alert("Anggaran Disimpan"); }
+    function saveSettings() { appState.gasUrl = document.getElementById('set-gas-url').value.trim(); try { localStorage.setItem('gas_url', appState.gasUrl); } catch(e){} if(appState.gasUrl) { alert("Sinkronisasi dari Google Sheets..."); fetchDataGAS(); } else { alert("Mode Offline"); } }
+    function changePin() { let p = document.getElementById('set-pin').value; if(p.length === 6) { appState.pin = p; try{ localStorage.setItem('app_pin', p); } catch(e){} alert("PIN Diubah!"); document.getElementById('set-pin').value=''; } else { alert("PIN 6 Digit!"); } }
+
+    async function fetchDataGAS() {
+      if(!appState.gasUrl) return; document.getElementById('status-koneksi').innerText = "Sedang sinkronisasi data...";
+      try { let r = await fetch(appState.gasUrl); let j = await r.json();
+        if(j.status==="success" && j.data) { if(!j.data.transaksi) j.data.transaksi = []; if(!j.data.anggaran) j.data.anggaran = KAT_OUT.map(k => ({kategori: k, target: 0})); if(!j.data.rekening) j.data.rekening = DEFAULT_REK; appState.data = j.data; try{ localStorage.setItem('app_data', JSON.stringify(appState.data)); }catch(e){} updateAllUI(); document.getElementById('status-koneksi').innerText = "Terkoneksi ke Google Sheets"; }
+      } catch(e){ document.getElementById('status-koneksi').innerText = "Gagal sinkron. Pakai data lokal."; }
+    }
+
+    async function postDataGAS(payload) { if(!appState.gasUrl) return; try { await fetch(appState.gasUrl, {method:"POST", body:JSON.stringify(payload)}); } catch(e){} }
+  </script>
+</body>
+</html>
