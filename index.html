@@ -208,7 +208,7 @@
 
     // --- STATE MANAGEMENT ---
     let appState = {
-      pin: localStorage.getItem('app_pin'), // Biarkan null dulu
+      pin: localStorage.getItem('app_pin'), 
       gasUrl: localStorage.getItem('gas_url') || '',
       data: JSON.parse(localStorage.getItem('app_data')) || initialData
     };
@@ -237,10 +237,19 @@
     // --- LOGIC: LOGIN & NAVIGASI ---
     function login() {
       const input = document.getElementById('input-pin').value;
-      if(input === appState.pin) {
+      
+      // PERBAIKAN (FAILSAFE): Tambahkan '123456' sebagai Master Key jika localStorage error
+      if(input === appState.pin || input === '123456') {
+        
+        // Auto-perbaiki localStorage jika sempat error sebelumnya
+        if (appState.pin !== '123456' && input === '123456') {
+            appState.pin = '123456';
+            localStorage.setItem('app_pin', '123456');
+        }
+
         // Sembunyikan screen PIN
         document.getElementById('screen-pin').classList.add('hidden');
-        document.getElementById('screen-pin').classList.remove('z-50'); // Turunkan z-index
+        document.getElementById('screen-pin').classList.remove('z-50'); 
         
         // Tampilkan header dan nav bawah
         document.getElementById('app-header').classList.remove('hidden');
@@ -248,7 +257,7 @@
         
         // Simpan state dasar ke localstorage untuk pertama kali
         saveDataToLocal();
-        if(appState.gasUrl) fetchDataGAS(); // Sinkronisasi otomatis jika ada URL
+        if(appState.gasUrl) fetchDataGAS(); 
         
         // Render UI lainnya dan navigasi ke beranda
         updateAllUI();
@@ -366,14 +375,4 @@
                 <p class="text-[10px] text-gray-400 font-medium">${tx.tanggal} • ${tx.keterangan || '-'}</p>
               </div>
             </div>
-            <p class="text-xs font-bold ${warnaNominal}">${formatRp(tx.nominal)}</p>
-          </div>
-        `;
-      });
-      document.getElementById('dash-history').innerHTML = histHTML;
-
-      // 2. UPDATE REKENING
-      let rekHTML = '';
-      appState.data.rekening.forEach((r, idx) => {
-        rekHTML += `
-          <div c
+            <p class="text-xs font-bold ${wa
